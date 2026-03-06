@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Text, Box, Newline, useApp } from "ink";
+import { Text, Box, Newline, useApp, useStdout, useInput } from "ink";
 import TextInput from "ink-text-input";
 import Redis from "ioredis";
 import { v4 as uuidv4 } from "uuid";
@@ -47,14 +47,32 @@ const App = () => {
   const [roomName, setRoomName] = useState("");
   const [roomPassword, setRoomPassword] = useState("");
   const [error, setError] = useState("");
+  const [scrollOffset, setScrollOffset] = useState(0); // 사용자가 얼마나 위로 스크롤했는지의 값
 
   const [messages, setMessages] = useState([]); // 채팅 메시지 목록
   const [currentMessage, setCurrentMessage] = useState(""); // 현재 입력 중인 메시지
   const { exit } = useApp();
+  const { stdout } = useStdout();
+  const terminalHeight = stdout?.rows ?? 24; // stdout이 없을 경우 기본 높이
 
   // Dynamic Redis keys based on user input
   const [channel, setChannel] = useState("");
   const [usersSetKey, setUsersSetKey] = useState("");
+
+  useInput((input, key) => {
+    if (step !== "CHATTING") {
+      return;
+    }
+
+    // 화살표 키로 메시지 스크롤
+    if (key.upArrow) {
+      setScrollOffset((prev) => prev + 1);
+    }
+
+    if (key.downArrow) {
+      setScrollOffset((prev) => Math.max(0, prev - 1));
+    }
+  });
 
   // Redis 메시지 수신 및 앱 종료 처리
   useEffect(() => {
@@ -203,6 +221,7 @@ const App = () => {
       await publisher.publish(channel, JSON.stringify(message));
 
       setCurrentMessage(""); // 메시지 전송 후 입력창 초기화
+      setScrollOffset(0); // 메시지 전송 후 맨 아래로 스크롤
     }
   };
 
@@ -290,6 +309,23 @@ const App = () => {
     );
   }
 
+  // 메시지 영역의 높이를 계산 (헤더, 입력창, 여백 등을 제외)
+  const messageAreaHeight = terminalHeight - 7; // 헤더, 입력창, 스크롤 힌트 등을 위한 여백
+
+  const messageCount = messages.length;
+  // 스크롤 가능한 최대치 계산
+  const maxOffset = Math.max(0, messageCount - messageAreaHeight);
+  // 현재 스크롤 위치가 최대치를 넘지 않도록 보정
+  const effectiveScrollOffset = Math.min(scrollOffset, maxOffset);
+
+  // 화면에 보여줄 메시지의 시작과 끝 인덱스 계산
+  const start = Math.max(
+    0,
+    messageCount - messageAreaHeight - effectiveScrollOffset,
+  );
+  const end = Math.max(0, messageCount - effectiveScrollOffset);
+  const visibleMessages = messages.slice(start, end);
+
   // CHATTING 단계
   return (
     <Box padding={1} flexDirection="column" height="100%">
@@ -311,7 +347,12 @@ const App = () => {
 
       {/* 메시지 표시 영역 */}
       <Box flexGrow={1} flexDirection="column">
-        {messages.map((msg) => (
+        {start > 0 && (
+          <Text dimColor>
+            ↑ 이전 메시지가 있습니다 (위쪽 화살표 키로 스크롤)
+          </Text>
+        )}
+        {visibleMessages.map((msg) => (
           <Box key={msg.id} flexDirection="row">
             {["SYSTEM", "JOIN", "LEAVE"].includes(msg.type) ? (
               <Text dimColor italic>
@@ -328,6 +369,11 @@ const App = () => {
             )}
           </Box>
         ))}
+        {effectiveScrollOffset > 0 && (
+          <Text dimColor>
+            ↓ 최신 메시지가 있습니다 (아래쪽 화살표 키로 스크롤)
+          </Text>
+        )}
       </Box>
 
       {/* 메시지 입력 영역 */}
