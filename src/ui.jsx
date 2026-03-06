@@ -86,7 +86,16 @@ const App = () => {
     const messageHandler = (channel, message) => {
       if (channel === channel) {
         const parsedMessage = JSON.parse(message);
-        setMessages((prev) => [...prev.slice(-100), parsedMessage]);
+        if (parsedMessage.type === "WHISPER") {
+          if (
+            parsedMessage.sender === nickname ||
+            parsedMessage.recipient === nickname
+          ) {
+            setMessages((prev) => [...prev.slice(-100), parsedMessage]);
+          }
+        } else {
+          setMessages((prev) => [...prev.slice(-100), parsedMessage]);
+        }
       }
     };
 
@@ -117,6 +126,26 @@ const App = () => {
   const startChattingSession = async (targetRoomName, targetNickname) => {
     const finalChannel = `chat:room:${targetRoomName}`;
     const finalUsersSetKey = `${finalChannel}:users`;
+    const historyKey = `${finalChannel}:history`;
+
+    // Fetch recent messages from the history
+    const messageHistory = await publisher.lrange(historyKey, 0, 49); // Get last 50 messages
+    const parsedHistory = messageHistory
+      .reverse()
+      .map((msg) => JSON.parse(msg));
+
+    // Set initial messages state with history
+    if (parsedHistory.length > 0) {
+      const historyLoadedMessage = {
+        id: uuidv4(),
+        type: "SYSTEM",
+        content: `--- 이전 대화 ${parsedHistory.length}개를 불러왔습니다. ---`,
+        timestamp: new Date().toISOString(),
+      };
+      setMessages([...parsedHistory, historyLoadedMessage]);
+    } else {
+      setMessages([]); // Clear messages from any previous room
+    }
 
     setChannel(finalChannel);
     setUsersSetKey(finalUsersSetKey);
@@ -194,6 +223,67 @@ const App = () => {
       return;
     }
 
+    // 명령어 처리: /whisper
+    if (trimmedValue.startsWith("/whisper ")) {
+      const parts = trimmedValue.split(" ");
+      const targetNickname = parts[1];
+      const whisperMessageContent = parts.slice(2).join(" ");
+
+      if (!targetNickname || !whisperMessageContent) {
+        const errorMessage = {
+          id: uuidv4(),
+          type: "SYSTEM",
+          content: "사용법: /whisper <닉네임> <메시지>",
+          timestamp: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev.slice(-100), errorMessage]);
+        setCurrentMessage("");
+        return;
+      }
+
+      if (targetNickname === nickname) {
+        const errorMessage = {
+          id: uuidv4(),
+          type: "SYSTEM",
+          content: "자기 자신에게 귓속말을 보낼 수 없습니다.",
+          timestamp: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev.slice(-100), errorMessage]);
+        setCurrentMessage("");
+        return;
+      }
+
+      const isUserInRoom = await publisher.sismember(
+        usersSetKey,
+        targetNickname,
+      );
+      if (!isUserInRoom) {
+        const errorMessage = {
+          id: uuidv4(),
+          type: "SYSTEM",
+          content: `오류: '${targetNickname}' 님을 찾을 수 없습니다.`,
+          timestamp: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev.slice(-100), errorMessage]);
+        setCurrentMessage("");
+        return;
+      }
+
+      const whisperMessage = {
+        id: uuidv4(),
+        type: "WHISPER",
+        sender: nickname,
+        recipient: targetNickname,
+        content: whisperMessageContent,
+        timestamp: new Date().toISOString(),
+      };
+
+      await publisher.publish(channel, JSON.stringify(whisperMessage));
+      setCurrentMessage("");
+      setScrollOffset(0);
+      return;
+    }
+
     // 명령어 처리: /users
     if (trimmedValue === "/users") {
       const onlineUsers = await publisher.smembers(usersSetKey);
@@ -218,7 +308,15 @@ const App = () => {
         timestamp: new Date().toISOString(),
         type: "MESSAGE",
       };
-      await publisher.publish(channel, JSON.stringify(message));
+      const historyKey = `${channel}:history`;
+
+      // Use a transaction to atomically store history and publish the message
+      await publisher
+        .multi()
+        .lpush(historyKey, JSON.stringify(message))
+        .ltrim(historyKey, 0, 99) // Keep the last 100 messages
+        .publish(channel, JSON.stringify(message))
+        .exec();
 
       setCurrentMessage(""); // 메시지 전송 후 입력창 초기화
       setScrollOffset(0); // 메시지 전송 후 맨 아래로 스크롤
@@ -358,6 +456,16 @@ const App = () => {
               <Text dimColor italic>
                 {msg.content}
               </Text>
+            ) : msg.type === "WHISPER" ? (
+              <>
+                <Text color="gray">[{formatTimestamp(msg.timestamp)}] </Text>
+                <Text color="magenta" italic>
+                  {msg.sender === nickname
+                    ? `→ ${msg.recipient}에게 귓속말`
+                    : `← ${msg.sender}로부터 귓속말`}
+                </Text>
+                <Text italic>: {msg.content}</Text>
+              </>
             ) : (
               <>
                 <Text color="gray">[{formatTimestamp(msg.timestamp)}] </Text>
@@ -385,7 +493,7 @@ const App = () => {
           value={currentMessage}
           onChange={setCurrentMessage}
           onSubmit={handleMessageSubmit}
-          placeholder="메시지를 입력하세요... (/users 로 참여자 확인)"
+          placeholder="메시지를 입력하세요... (/users, /whisper)"
         />
       </Box>
     </Box>

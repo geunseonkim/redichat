@@ -61,9 +61,10 @@ Redis 채널을 통해 오가는 메시지는 JSON 문자열로 직렬화하여 
 {
   "id": "uuid-v4",
   "sender": "user_nickname",
+  "recipient": "target_nickname", // WHISPER 타입일 때 사용
   "content": "안녕하세요! 터미널 채팅입니다.",
   "timestamp": "2023-10-27T10:00:00Z",
-  "type": "MESSAGE" // MESSAGE, JOIN, LEAVE
+  "type": "MESSAGE" // MESSAGE, JOIN, LEAVE, WHISPER, SYSTEM
 }
 ```
 
@@ -76,6 +77,8 @@ Redis 채널을 통해 오가는 메시지는 JSON 문자열로 직렬화하여 
   - 각 채팅방에 참여 중인 사용자의 닉네임 목록을 저장합니다.
 - **채팅방 정보 (HASH)**: `chat:rooms`
   - `{room_name}: {hashed_password}` 형태로 각 비공개 채팅방의 암호화된 비밀번호를 저장합니다.
+- **대화 기록 (LIST)**: `chat:room:{room_name}:history`
+  - 각 채팅방의 최근 대화 내용(최대 100개)을 저장합니다.
 
 ## 5. 핵심 기능 명세 (Core Features)
 
