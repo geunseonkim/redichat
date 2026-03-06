@@ -101,9 +101,23 @@ Redis 채널을 통해 오가는 메시지는 JSON 문자열로 직렬화하여 
 - **4단계: 메시지 전송 및 수신 로직 통합**: UI와 Redis 연동 로직 결합.
 - **5단계: 보안 및 배포**: Redis 보안 설정 및 GitHub Release를 통한 배포.
 
-## 7. 보안 및 배포 (Security & Deployment)
+## 7. 설정, 보안 및 배포 (Configuration, Security & Deployment)
+
+### 7.1. 환경 변수 설정
+
+애플리케이션은 시스템 환경 변수를 통해 Redis 연결 정보를 설정할 수 있습니다. 프로젝트 루트의 `.env.example` 파일을 참고하여 `.env` 파일을 생성하면 더 쉽게 관리할 수 있습니다.
+
+- `REDIS_HOST`: Redis 서버 호스트 (기본값: `127.0.0.1`)
+- `REDIS_PORT`: Redis 서버 포트 (기본값: `6379`)
+- `REDIS_PASSWORD`: Redis 서버 비밀번호 (기본값: 없음)
+- `REDIS_CHANNEL`: 사용할 Redis 채널 이름 (기본값: `chat:global`)
+
+### 7.2. 보안
 
 - **보안**: Redis를 공용 인터넷에 노출할 경우 반드시 `requirepass` 설정 및 가능하다면 TLS/SSL 연결을 지원해야 함.
 - **배포**: GitHub Release를 통해 OS별(Mac, Linux, Windows) 바이너리 배포.
 
 ## 8. 향후 개선 사항 (Future Improvements)
+
+- **메시지 기록 (History)**: Pub/Sub은 휘발성이므로, Redis `List`나 `Stream`을 사용하여 최근 대화 내용을 저장하고 불러오기 기능 추가.
+- **파일 전송**: Base64 인코딩 또는 별도 링크를 통한 파일 공유.

@@ -4,11 +4,18 @@ import TextInput from "ink-text-input";
 import Redis from "ioredis";
 import { v4 as uuidv4 } from "uuid";
 
-// Redis 클라이언트 생성. Pub/Sub을 위해서는 Publisher와 Subscriber를 분리하는 것이 좋습니다.
-const publisher = new Redis(); // 기본 설정: localhost:6379
-const subscriber = new Redis();
+// Redis 연결 설정. 환경 변수에서 값을 읽어오고, 없으면 기본값을 사용합니다.
+const redisOptions = {
+  host: process.env.REDIS_HOST || "127.0.0.1",
+  port: process.env.REDIS_PORT || 6379,
+  password: process.env.REDIS_PASSWORD, // password가 없으면 undefined가 되어야 함
+};
 
-const CHANNEL = "chat:global";
+// Redis 클라이언트 생성. Pub/Sub을 위해서는 Publisher와 Subscriber를 분리하는 것이 좋습니다.
+const publisher = new Redis(redisOptions);
+const subscriber = new Redis(redisOptions);
+
+const CHANNEL = process.env.REDIS_CHANNEL || "chat:global";
 
 const App = () => {
   const [nickname, setNickname] = useState("");
