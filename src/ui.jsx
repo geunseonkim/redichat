@@ -16,6 +16,7 @@ const publisher = new Redis(redisOptions);
 const subscriber = new Redis(redisOptions);
 
 const CHANNEL = process.env.REDIS_CHANNEL || "chat:global";
+const USERS_SET_KEY = `${CHANNEL}:users`;
 
 const App = () => {
   const [nickname, setNickname] = useState("");
@@ -44,42 +45,70 @@ const App = () => {
 
     // 컴포넌트 언마운트 시 정리 (앱 종료)
     return () => {
-      const leaveMessage = {
-        id: uuidv4(),
-        sender: "System",
-        content: `${nickname}님이 채팅방을 나갔습니다.`,
-        timestamp: new Date().toISOString(),
-        type: "LEAVE",
-      };
-      publisher.publish(CHANNEL, JSON.stringify(leaveMessage));
+      const cleanup = async () => {
+        await publisher.srem(USERS_SET_KEY, nickname);
+        const leaveMessage = {
+          id: uuidv4(),
+          type: "LEAVE",
+          nickname,
+          content: `${nickname}님이 채팅방을 나갔습니다.`,
+          timestamp: new Date().toISOString(),
+        };
+        await publisher.publish(CHANNEL, JSON.stringify(leaveMessage));
 
-      subscriber.off("message", messageHandler);
-      subscriber.unsubscribe(CHANNEL);
-      publisher.quit();
-      subscriber.quit();
+        subscriber.off("message", messageHandler);
+        subscriber.unsubscribe(CHANNEL);
+        await publisher.quit();
+        await subscriber.quit();
+      };
+      cleanup();
     };
   }, [isNicknameSet, nickname]);
 
-  const handleNicknameSubmit = (value) => {
+  const handleNicknameSubmit = async (value) => {
     if (value.trim()) {
       const newNickname = value.trim();
+
+      // Redis Set에 사용자 추가
+      await publisher.sadd(USERS_SET_KEY, newNickname);
+
       setNickname(newNickname);
       setIsNicknameSet(true);
 
       // 입장 메시지 발행
       const joinMessage = {
         id: uuidv4(),
-        sender: "System",
+        type: "JOIN",
+        nickname: newNickname,
         content: `${newNickname}님이 채팅방에 입장했습니다.`,
         timestamp: new Date().toISOString(),
-        type: "JOIN",
       };
-      publisher.publish(CHANNEL, JSON.stringify(joinMessage));
+      await publisher.publish(CHANNEL, JSON.stringify(joinMessage));
     }
   };
 
-  const handleMessageSubmit = (value) => {
-    if (value.trim() && nickname) {
+  const handleMessageSubmit = async (value) => {
+    const trimmedValue = value.trim();
+    if (!trimmedValue || !nickname) {
+      return;
+    }
+
+    // 명령어 처리: /users
+    if (trimmedValue === "/users") {
+      const onlineUsers = await publisher.smembers(USERS_SET_KEY);
+      const usersMessage = {
+        id: uuidv4(),
+        type: "SYSTEM",
+        content: `참여자 목록 (${onlineUsers.length}): ${onlineUsers.join(", ")}`,
+        timestamp: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev.slice(-100), usersMessage]);
+      setCurrentMessage("");
+      return;
+    }
+
+    // 일반 메시지 처리
+    if (trimmedValue && nickname) {
       // 메시지 발행
       const message = {
         id: uuidv4(),
@@ -88,7 +117,7 @@ const App = () => {
         timestamp: new Date().toISOString(),
         type: "MESSAGE",
       };
-      publisher.publish(CHANNEL, JSON.stringify(message));
+      await publisher.publish(CHANNEL, JSON.stringify(message));
 
       setCurrentMessage(""); // 메시지 전송 후 입력창 초기화
     }
@@ -128,7 +157,7 @@ const App = () => {
       borderColor="cyan"
       padding={1}
       flexDirection="column"
-      height="100%" // 터미널 높이에 맞춰 최대한 확장
+      height="100%"
     >
       {/* 채팅방 헤더 */}
       <Box
@@ -143,11 +172,7 @@ const App = () => {
       </Box>
 
       {/* 메시지 표시 영역 */}
-      <Box
-        flexGrow={1} // 남은 공간을 모두 차지
-        flexDirection="column"
-        overflow="hidden" // 메시지가 넘칠 경우 숨김 (Ink는 스크롤 기능이 없음)
-      >
+      <Box flexGrow={1} flexDirection="column" overflow="hidden">
         {messages.map((msg) => (
           <Box key={msg.id} flexDirection="row">
             {["SYSTEM", "JOIN", "LEAVE"].includes(msg.type) ? (
@@ -172,7 +197,7 @@ const App = () => {
           value={currentMessage}
           onChange={setCurrentMessage}
           onSubmit={handleMessageSubmit}
-          placeholder="메시지를 입력하세요..."
+          placeholder="메시지를 입력하세요... (/users 로 참여자 확인)"
         />
       </Box>
     </Box>
