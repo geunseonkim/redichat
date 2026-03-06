@@ -326,8 +326,8 @@ const App = () => {
   if (step === "NICKNAME") {
     return (
       <Box
-        borderStyle="round"
-        borderColor="yellow"
+        borderStyle="bold"
+        borderColor="green"
         padding={1}
         flexDirection="column"
       >
@@ -339,7 +339,7 @@ const App = () => {
           에 오신 것을 환영합니다.
         </Text>
         <Newline />
-        <Text>닉네임을 입력해주세요:</Text>
+        <Text color="green">닉네임을 입력해주세요:</Text>
         <TextInput
           value={nickname}
           onChange={setNickname}
@@ -353,8 +353,8 @@ const App = () => {
   if (step === "ROOM_NAME") {
     return (
       <Box
-        borderStyle="round"
-        borderColor="yellow"
+        borderStyle="bold"
+        borderColor="green"
         padding={1}
         flexDirection="column"
       >
@@ -383,8 +383,8 @@ const App = () => {
   if (step === "ROOM_PASSWORD") {
     return (
       <Box
-        borderStyle="round"
-        borderColor="yellow"
+        borderStyle="bold"
+        borderColor="green"
         padding={1}
         flexDirection="column"
       >
