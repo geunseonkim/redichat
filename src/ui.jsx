@@ -18,6 +18,26 @@ const subscriber = new Redis(redisOptions);
 const CHANNEL = process.env.REDIS_CHANNEL || "chat:global";
 const USERS_SET_KEY = `${CHANNEL}:users`;
 
+// 닉네임에 따라 고유한 색상을 반환하는 함수
+const COLORS = ["green", "yellow", "blue", "magenta", "cyan", "red"];
+const getColorForNickname = (nickname) => {
+  if (nickname === "System") return "gray";
+  let hash = 0;
+  for (let i = 0; i < nickname.length; i++) {
+    hash = nickname.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return COLORS[Math.abs(hash % COLORS.length)];
+};
+
+// 타임스탬프 포맷팅 함수 (HH:mm)
+const formatTimestamp = (isoString) => {
+  return new Date(isoString).toLocaleTimeString("ko-KR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+};
+
 const App = () => {
   const [nickname, setNickname] = useState("");
   const [isNicknameSet, setIsNicknameSet] = useState(false);
@@ -181,7 +201,8 @@ const App = () => {
               </Text>
             ) : (
               <>
-                <Text bold color="magenta">
+                <Text color="gray">[{formatTimestamp(msg.timestamp)}] </Text>
+                <Text bold color={getColorForNickname(msg.sender)}>
                   {msg.sender}
                 </Text>
                 <Text>: {msg.content}</Text>
