@@ -1,58 +1,88 @@
 import React, { useState, useEffect } from "react";
 import { Text, Box, Newline, useApp } from "ink";
 import TextInput from "ink-text-input";
+import Redis from "ioredis";
+import { v4 as uuidv4 } from "uuid";
+
+// Redis 클라이언트 생성. Pub/Sub을 위해서는 Publisher와 Subscriber를 분리하는 것이 좋습니다.
+const publisher = new Redis(); // 기본 설정: localhost:6379
+const subscriber = new Redis();
+
+const CHANNEL = "chat:global";
 
 const App = () => {
   const [nickname, setNickname] = useState("");
   const [isNicknameSet, setIsNicknameSet] = useState(false);
   const [messages, setMessages] = useState([]); // 채팅 메시지 목록
   const [currentMessage, setCurrentMessage] = useState(""); // 현재 입력 중인 메시지
-  const { exit } = useApp(); // Ink 앱 종료 훅
+  const { exit } = useApp();
 
-  // 앱 종료 시 메시지
+  // Redis 메시지 수신 및 앱 종료 처리
   useEffect(() => {
-    const handleExit = () => {
-      if (nickname && isNicknameSet) {
-        setMessages((prevMessages) => [
-          ...prevMessages,
-          {
-            id: Date.now().toString(),
-            sender: "System",
-            content: `${nickname}님이 채팅방을 나갔습니다.`,
-            timestamp: new Date().toISOString(),
-            type: "LEAVE",
-          },
-        ]);
-        // 실제 Redis PUBLISH 로직은 여기에 추가될 예정
+    if (!isNicknameSet) {
+      return;
+    }
+
+    // 채널 구독
+    subscriber.subscribe(CHANNEL);
+
+    const messageHandler = (channel, message) => {
+      if (channel === CHANNEL) {
+        const parsedMessage = JSON.parse(message);
+        setMessages((prev) => [...prev.slice(-100), parsedMessage]);
       }
     };
 
-    // Ink 앱 종료 시 호출될 함수 등록 (예시)
-    // Ink의 exit()는 실제 프로세스를 종료하므로, 여기서는 메시지만 추가
-    // 실제 앱 종료 로직은 cli.jsx에서 처리하거나, 특정 키 입력으로 처리할 수 있습니다.
-    // return () => { /* cleanup */ };
-  }, [nickname, isNicknameSet]);
+    subscriber.on("message", messageHandler);
+
+    // 컴포넌트 언마운트 시 정리 (앱 종료)
+    return () => {
+      const leaveMessage = {
+        id: uuidv4(),
+        sender: "System",
+        content: `${nickname}님이 채팅방을 나갔습니다.`,
+        timestamp: new Date().toISOString(),
+        type: "LEAVE",
+      };
+      publisher.publish(CHANNEL, JSON.stringify(leaveMessage));
+
+      subscriber.off("message", messageHandler);
+      subscriber.unsubscribe(CHANNEL);
+      publisher.quit();
+      subscriber.quit();
+    };
+  }, [isNicknameSet, nickname]);
 
   const handleNicknameSubmit = (value) => {
     if (value.trim()) {
-      setNickname(value.trim());
+      const newNickname = value.trim();
+      setNickname(newNickname);
       setIsNicknameSet(true);
+
+      // 입장 메시지 발행
+      const joinMessage = {
+        id: uuidv4(),
+        sender: "System",
+        content: `${newNickname}님이 채팅방에 입장했습니다.`,
+        timestamp: new Date().toISOString(),
+        type: "JOIN",
+      };
+      publisher.publish(CHANNEL, JSON.stringify(joinMessage));
     }
   };
 
   const handleMessageSubmit = (value) => {
     if (value.trim() && nickname) {
-      // 현재는 로컬 상태에만 추가. 나중에 Redis PUBLISH 로직으로 대체
-      setMessages((prevMessages) => [
-        ...prevMessages.slice(-100), // 최대 100개 메시지 유지 (임시)
-        {
-          id: Date.now().toString(),
-          sender: nickname,
-          content: value.trim(),
-          timestamp: new Date().toISOString(),
-          type: "MESSAGE",
-        },
-      ]);
+      // 메시지 발행
+      const message = {
+        id: uuidv4(),
+        sender: nickname,
+        content: value.trim(),
+        timestamp: new Date().toISOString(),
+        type: "MESSAGE",
+      };
+      publisher.publish(CHANNEL, JSON.stringify(message));
+
       setCurrentMessage(""); // 메시지 전송 후 입력창 초기화
     }
   };
@@ -113,9 +143,7 @@ const App = () => {
       >
         {messages.map((msg) => (
           <Box key={msg.id} flexDirection="row">
-            {msg.type === "SYSTEM" ||
-            msg.type === "JOIN" ||
-            msg.type === "LEAVE" ? (
+            {["SYSTEM", "JOIN", "LEAVE"].includes(msg.type) ? (
               <Text color="gray" italic>
                 {msg.content}
               </Text>
