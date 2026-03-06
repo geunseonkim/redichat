@@ -96,6 +96,26 @@ const App = () => {
     };
   }, [step, channel, usersSetKey, nickname]);
 
+  const startChattingSession = async (targetRoomName, targetNickname) => {
+    const finalChannel = `chat:room:${targetRoomName}`;
+    const finalUsersSetKey = `${finalChannel}:users`;
+
+    setChannel(finalChannel);
+    setUsersSetKey(finalUsersSetKey);
+
+    await publisher.sadd(finalUsersSetKey, targetNickname);
+    setStep("CHATTING");
+
+    const joinMessage = {
+      id: uuidv4(),
+      type: "JOIN",
+      nickname: targetNickname,
+      content: `${targetNickname}님이 채팅방에 입장했습니다.`,
+      timestamp: new Date().toISOString(),
+    };
+    await publisher.publish(finalChannel, JSON.stringify(joinMessage));
+  };
+
   const handleNicknameSubmit = (value) => {
     if (value.trim()) {
       setNickname(value.trim());
@@ -103,10 +123,28 @@ const App = () => {
     }
   };
 
-  const handleRoomNameSubmit = (value) => {
-    if (value.trim()) {
-      setRoomName(value.trim());
-      setStep("ROOM_PASSWORD");
+  const handleRoomNameSubmit = async (value) => {
+    const trimmedValue = value.trim();
+    if (trimmedValue) {
+      if (trimmedValue.toLowerCase() === "random") {
+        let roomIndex = 1;
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+          const randomRoomName = `random${roomIndex}`;
+          const usersKey = `chat:room:${randomRoomName}:users`;
+          const userCount = await publisher.scard(usersKey);
+
+          if (userCount < 30) {
+            setRoomName(randomRoomName);
+            await startChattingSession(randomRoomName, nickname);
+            break;
+          }
+          roomIndex++;
+        }
+      } else {
+        setRoomName(trimmedValue);
+        setStep("ROOM_PASSWORD");
+      }
     }
   };
 
@@ -129,27 +167,7 @@ const App = () => {
       await publisher.hset("chat:rooms", roomName, newHashedPassword);
     }
 
-    // 동적 채널 및 사용자 Set 키 생성
-    const finalChannel = `chat:room:${roomName}`;
-    const finalUsersSetKey = `${finalChannel}:users`;
-    setChannel(finalChannel);
-    setUsersSetKey(finalUsersSetKey);
-
-    // 새 채팅방의 사용자 Set에 현재 사용자 추가
-    await publisher.sadd(finalUsersSetKey, nickname);
-
-    // 채팅 단계로 이동
-    setStep("CHATTING");
-
-    // 입장 메시지 발행
-    const joinMessage = {
-      id: uuidv4(),
-      type: "JOIN",
-      nickname,
-      content: `${nickname}님이 채팅방에 입장했습니다.`,
-      timestamp: new Date().toISOString(),
-    };
-    await publisher.publish(finalChannel, JSON.stringify(joinMessage));
+    await startChattingSession(roomName, nickname);
   };
 
   const handleMessageSubmit = async (value) => {
@@ -232,6 +250,9 @@ const App = () => {
         </Text>
         <Newline />
         <Text>참여하거나 새로 만들 채팅방 이름을 입력해주세요:</Text>
+        <Text color="gray">
+          (공개 채팅방에 참여하려면 'random'을 입력하세요)
+        </Text>
         <TextInput
           value={roomName}
           onChange={setRoomName}
