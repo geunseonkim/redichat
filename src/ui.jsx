@@ -292,32 +292,29 @@ const App = () => {
 
   // CHATTING 단계
   return (
-    <Box
-      borderStyle="round"
-      borderColor="cyan"
-      padding={1}
-      flexDirection="column"
-      height="100%"
-    >
+    <Box padding={1} flexDirection="column" height="100%">
       {/* 채팅방 헤더 */}
       <Box
-        borderStyle="single"
-        borderColor="blue"
-        paddingX={1}
+        flexDirection="column"
         marginBottom={1}
+        borderStyle="single"
+        borderBottomColor="gray"
+        borderLeft={false}
+        borderRight={false}
+        borderTop={false}
       >
-        <Text bold>
-          {roomName} -{" "}
-          <Text color={getColorForNickname(nickname)}>{nickname}</Text>
+        <Text>
+          <Text bold>채팅방: {roomName}</Text> (나:{" "}
+          <Text color={getColorForNickname(nickname)}>{nickname}</Text>)
         </Text>
       </Box>
 
       {/* 메시지 표시 영역 */}
-      <Box flexGrow={1} flexDirection="column" overflow="hidden">
+      <Box flexGrow={1} flexDirection="column">
         {messages.map((msg) => (
           <Box key={msg.id} flexDirection="row">
             {["SYSTEM", "JOIN", "LEAVE"].includes(msg.type) ? (
-              <Text color="gray" italic>
+              <Text dimColor italic>
                 {msg.content}
               </Text>
             ) : (
@@ -334,7 +331,10 @@ const App = () => {
       </Box>
 
       {/* 메시지 입력 영역 */}
-      <Box borderStyle="single" borderColor="green" paddingX={1} marginTop={1}>
+      <Box marginTop={1}>
+        <Box marginRight={1}>
+          <Text color="green">{">"}</Text>
+        </Box>
         <TextInput
           value={currentMessage}
           onChange={setCurrentMessage}
