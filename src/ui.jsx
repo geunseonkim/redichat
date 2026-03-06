@@ -15,9 +15,6 @@ const redisOptions = {
 const publisher = new Redis(redisOptions);
 const subscriber = new Redis(redisOptions);
 
-const CHANNEL = process.env.REDIS_CHANNEL || "chat:global";
-const USERS_SET_KEY = `${CHANNEL}:users`;
-
 // 닉네임에 따라 고유한 색상을 반환하는 함수
 const COLORS = ["green", "yellow", "blue", "magenta", "cyan", "red"];
 const getColorForNickname = (nickname) => {
@@ -39,23 +36,30 @@ const formatTimestamp = (isoString) => {
 };
 
 const App = () => {
+  const [step, setStep] = useState("NICKNAME"); // NICKNAME, ROOM_NAME, ROOM_PASSWORD, CHATTING
   const [nickname, setNickname] = useState("");
-  const [isNicknameSet, setIsNicknameSet] = useState(false);
+  const [roomName, setRoomName] = useState("");
+  const [roomPassword, setRoomPassword] = useState("");
+
   const [messages, setMessages] = useState([]); // 채팅 메시지 목록
   const [currentMessage, setCurrentMessage] = useState(""); // 현재 입력 중인 메시지
   const { exit } = useApp();
 
+  // Dynamic Redis keys based on user input
+  const [channel, setChannel] = useState("");
+  const [usersSetKey, setUsersSetKey] = useState("");
+
   // Redis 메시지 수신 및 앱 종료 처리
   useEffect(() => {
-    if (!isNicknameSet) {
+    if (step !== "CHATTING" || !channel) {
       return;
     }
 
     // 채널 구독
-    subscriber.subscribe(CHANNEL);
+    subscriber.subscribe(channel);
 
     const messageHandler = (channel, message) => {
-      if (channel === CHANNEL) {
+      if (channel === channel) {
         const parsedMessage = JSON.parse(message);
         setMessages((prev) => [...prev.slice(-100), parsedMessage]);
       }
@@ -66,7 +70,7 @@ const App = () => {
     // 컴포넌트 언마운트 시 정리 (앱 종료)
     return () => {
       const cleanup = async () => {
-        await publisher.srem(USERS_SET_KEY, nickname);
+        await publisher.srem(usersSetKey, nickname);
         const leaveMessage = {
           id: uuidv4(),
           type: "LEAVE",
@@ -74,37 +78,56 @@ const App = () => {
           content: `${nickname}님이 채팅방을 나갔습니다.`,
           timestamp: new Date().toISOString(),
         };
-        await publisher.publish(CHANNEL, JSON.stringify(leaveMessage));
+        await publisher.publish(channel, JSON.stringify(leaveMessage));
 
         subscriber.off("message", messageHandler);
-        subscriber.unsubscribe(CHANNEL);
+        subscriber.unsubscribe(channel);
         await publisher.quit();
         await subscriber.quit();
       };
       cleanup();
     };
-  }, [isNicknameSet, nickname]);
+  }, [step, channel, usersSetKey, nickname]);
 
-  const handleNicknameSubmit = async (value) => {
+  const handleNicknameSubmit = (value) => {
     if (value.trim()) {
-      const newNickname = value.trim();
-
-      // Redis Set에 사용자 추가
-      await publisher.sadd(USERS_SET_KEY, newNickname);
-
-      setNickname(newNickname);
-      setIsNicknameSet(true);
-
-      // 입장 메시지 발행
-      const joinMessage = {
-        id: uuidv4(),
-        type: "JOIN",
-        nickname: newNickname,
-        content: `${newNickname}님이 채팅방에 입장했습니다.`,
-        timestamp: new Date().toISOString(),
-      };
-      await publisher.publish(CHANNEL, JSON.stringify(joinMessage));
+      setNickname(value.trim());
+      setStep("ROOM_NAME");
     }
+  };
+
+  const handleRoomNameSubmit = (value) => {
+    if (value.trim()) {
+      setRoomName(value.trim());
+      setStep("ROOM_PASSWORD");
+    }
+  };
+
+  const handleRoomPasswordSubmit = async (value) => {
+    const finalPassword = value.trim(); // 비밀번호는 비워둘 수 있음
+    setRoomPassword(finalPassword);
+
+    // 동적 채널 및 사용자 Set 키 생성
+    const finalChannel = `chat:room:${roomName}:${finalPassword}`;
+    const finalUsersSetKey = `${finalChannel}:users`;
+    setChannel(finalChannel);
+    setUsersSetKey(finalUsersSetKey);
+
+    // 새 채팅방의 사용자 Set에 현재 사용자 추가
+    await publisher.sadd(finalUsersSetKey, nickname);
+
+    // 채팅 단계로 이동
+    setStep("CHATTING");
+
+    // 입장 메시지 발행
+    const joinMessage = {
+      id: uuidv4(),
+      type: "JOIN",
+      nickname,
+      content: `${nickname}님이 채팅방에 입장했습니다.`,
+      timestamp: new Date().toISOString(),
+    };
+    await publisher.publish(finalChannel, JSON.stringify(joinMessage));
   };
 
   const handleMessageSubmit = async (value) => {
@@ -115,7 +138,7 @@ const App = () => {
 
     // 명령어 처리: /users
     if (trimmedValue === "/users") {
-      const onlineUsers = await publisher.smembers(USERS_SET_KEY);
+      const onlineUsers = await publisher.smembers(usersSetKey);
       const usersMessage = {
         id: uuidv4(),
         type: "SYSTEM",
@@ -137,13 +160,13 @@ const App = () => {
         timestamp: new Date().toISOString(),
         type: "MESSAGE",
       };
-      await publisher.publish(CHANNEL, JSON.stringify(message));
+      await publisher.publish(channel, JSON.stringify(message));
 
       setCurrentMessage(""); // 메시지 전송 후 입력창 초기화
     }
   };
 
-  if (!isNicknameSet) {
+  if (step === "NICKNAME") {
     return (
       <Box
         borderStyle="round"
@@ -170,7 +193,57 @@ const App = () => {
     );
   }
 
-  // 닉네임 설정 후 채팅 UI
+  if (step === "ROOM_NAME") {
+    return (
+      <Box
+        borderStyle="round"
+        borderColor="yellow"
+        padding={1}
+        flexDirection="column"
+      >
+        <Text>
+          안녕하세요,{" "}
+          <Text color={getColorForNickname(nickname)} bold>
+            {nickname}
+          </Text>
+          님!
+        </Text>
+        <Newline />
+        <Text>참여하거나 새로 만들 채팅방 이름을 입력해주세요:</Text>
+        <TextInput
+          value={roomName}
+          onChange={setRoomName}
+          onSubmit={handleRoomNameSubmit}
+          placeholder="예: general, random..."
+        />
+      </Box>
+    );
+  }
+
+  if (step === "ROOM_PASSWORD") {
+    return (
+      <Box
+        borderStyle="round"
+        borderColor="yellow"
+        padding={1}
+        flexDirection="column"
+      >
+        <Text>
+          채팅방 '<Text color="cyan">{roomName}</Text>'의 비밀번호를
+          입력해주세요.
+        </Text>
+        <Text color="gray">(비밀번호가 없으면 그냥 Enter를 누르세요)</Text>
+        <TextInput
+          value={roomPassword}
+          onChange={setRoomPassword}
+          onSubmit={handleRoomPasswordSubmit}
+          placeholder="비밀번호 입력..."
+        />
+      </Box>
+    );
+  }
+
+  // CHATTING 단계
   return (
     <Box
       borderStyle="round"
@@ -187,7 +260,8 @@ const App = () => {
         marginBottom={1}
       >
         <Text bold>
-          Redis 터미널 채팅 - <Text color="green">{nickname}</Text>
+          {roomName} -{" "}
+          <Text color={getColorForNickname(nickname)}>{nickname}</Text>
         </Text>
       </Box>
 
