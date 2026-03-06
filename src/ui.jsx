@@ -3,6 +3,7 @@ import { Text, Box, Newline, useApp } from "ink";
 import TextInput from "ink-text-input";
 import Redis from "ioredis";
 import { v4 as uuidv4 } from "uuid";
+import crypto from "crypto";
 
 // Redis 연결 설정. 환경 변수에서 값을 읽어오고, 없으면 기본값을 사용합니다.
 const redisOptions = {
@@ -14,6 +15,11 @@ const redisOptions = {
 // Redis 클라이언트 생성. Pub/Sub을 위해서는 Publisher와 Subscriber를 분리하는 것이 좋습니다.
 const publisher = new Redis(redisOptions);
 const subscriber = new Redis(redisOptions);
+
+// 비밀번호를 해시하는 함수
+const hashPassword = (password) => {
+  return crypto.createHash("sha256").update(password).digest("hex");
+};
 
 // 닉네임에 따라 고유한 색상을 반환하는 함수
 const COLORS = ["green", "yellow", "blue", "magenta", "cyan", "red"];
@@ -40,6 +46,7 @@ const App = () => {
   const [nickname, setNickname] = useState("");
   const [roomName, setRoomName] = useState("");
   const [roomPassword, setRoomPassword] = useState("");
+  const [error, setError] = useState("");
 
   const [messages, setMessages] = useState([]); // 채팅 메시지 목록
   const [currentMessage, setCurrentMessage] = useState(""); // 현재 입력 중인 메시지
@@ -104,11 +111,26 @@ const App = () => {
   };
 
   const handleRoomPasswordSubmit = async (value) => {
-    const finalPassword = value.trim(); // 비밀번호는 비워둘 수 있음
-    setRoomPassword(finalPassword);
+    const enteredPassword = value.trim();
+    setError(""); // 이전 에러 메시지 초기화
+
+    const storedHashedPassword = await publisher.hget("chat:rooms", roomName);
+
+    if (storedHashedPassword) {
+      // 기존 방: 비밀번호 검증
+      const enteredHashedPassword = hashPassword(enteredPassword);
+      if (storedHashedPassword !== enteredHashedPassword) {
+        setError("비밀번호가 일치하지 않습니다. 다시 시도해주세요.");
+        return;
+      }
+    } else {
+      // 새로운 방: 비밀번호 설정
+      const newHashedPassword = hashPassword(enteredPassword);
+      await publisher.hset("chat:rooms", roomName, newHashedPassword);
+    }
 
     // 동적 채널 및 사용자 Set 키 생성
-    const finalChannel = `chat:room:${roomName}:${finalPassword}`;
+    const finalChannel = `chat:room:${roomName}`;
     const finalUsersSetKey = `${finalChannel}:users`;
     setChannel(finalChannel);
     setUsersSetKey(finalUsersSetKey);
@@ -233,9 +255,13 @@ const App = () => {
           입력해주세요.
         </Text>
         <Text color="gray">(비밀번호가 없으면 그냥 Enter를 누르세요)</Text>
+        {error && <Text color="red">{error}</Text>}
         <TextInput
           value={roomPassword}
-          onChange={setRoomPassword}
+          onChange={(v) => {
+            setRoomPassword(v);
+            setError(""); // 입력 시 에러 메시지 제거
+          }}
           onSubmit={handleRoomPasswordSubmit}
           placeholder="비밀번호 입력..."
         />
