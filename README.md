@@ -2,10 +2,6 @@
 
 > A simple, real-time, multi-room terminal chat application using Node.js and Redis.
 
-![Screenshot](https://user-images.githubusercontent.com/your-id/your-repo-id/screenshot.png)
-
-> (여기에 스크린샷 이미지를 추가하는 것을 추천합니다)
-
 ## ✨ Features
 
 - **Real-time Chat**: Blazing fast messaging powered by Redis Pub/Sub.
