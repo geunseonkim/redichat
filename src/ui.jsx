@@ -169,11 +169,16 @@ const App = () => {
     subscriber.on("message", messageHandler);
 
     return () => {
+      // If the app is exiting, the dedicated exit handler will manage cleanup.
+      // This prevents a race condition with the quit() command.
+      if (isExiting) {
+        return;
+      }
       // 방을 이동하거나 앱이 종료될 때, 이전 채널의 구독을 확실히 해제합니다.
       subscriber.unsubscribe(channel);
       subscriber.off("message", messageHandler);
     };
-  }, [step, channel, nickname]);
+  }, [step, channel, nickname, isExiting]);
 
   const startChattingSession = async (targetRoomName, targetNickname) => {
     const finalChannel = `chat:room:${targetRoomName}`;
