@@ -198,7 +198,7 @@ const App = () => {
           const usersKey = `chat:room:${randomRoomName}:users`;
           const userCount = await publisher.scard(usersKey);
 
-          if (userCount < 30) {
+          if (userCount < 100) {
             setRoomName(randomRoomName);
             await startChattingSession(randomRoomName, nickname);
             break;
@@ -206,6 +206,15 @@ const App = () => {
           roomIndex++;
         }
       } else {
+        // Private room user count check
+        const usersKey = `chat:room:${trimmedValue}:users`;
+        const userCount = await publisher.scard(usersKey);
+        if (userCount >= 100) {
+          setError(`채팅방 '${trimmedValue}'의 정원(100명)이 가득 찼습니다.`);
+          return;
+        }
+
+        setError(""); // Clear previous errors
         setRoomName(trimmedValue);
         setStep("ROOM_PASSWORD");
       }
@@ -419,9 +428,13 @@ const App = () => {
         <Text color="gray">
           (공개 채팅방에 참여하려면 'random'을 입력하세요)
         </Text>
+        {error && <Text color="red">{error}</Text>}
         <TextInput
           value={roomName}
-          onChange={setRoomName}
+          onChange={(v) => {
+            setRoomName(v);
+            setError("");
+          }}
           onSubmit={handleRoomNameSubmit}
           placeholder="예: general, random..."
         />
