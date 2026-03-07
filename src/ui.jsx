@@ -41,6 +41,15 @@ const formatTimestamp = (isoString) => {
   });
 };
 
+// 날짜 포맷팅 함수 (YYYY년 M월 D일)
+const formatDate = (isoString) => {
+  return new Date(isoString).toLocaleDateString("ko-KR", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+};
+
 const App = () => {
   const [step, setStep] = useState("NICKNAME"); // NICKNAME, ROOM_NAME, ROOM_PASSWORD, CHATTING
   const [nickname, setNickname] = useState("");
@@ -414,33 +423,63 @@ const App = () => {
 
       {/* 메시지 표시 영역 */}
       <Box flexGrow={1} flexDirection="column">
-        {messages.map((msg) => (
-          <Box key={msg.id} flexDirection="row">
-            {["SYSTEM", "JOIN", "LEAVE"].includes(msg.type) ? (
-              <Text dimColor italic>
-                {msg.content}
-              </Text>
-            ) : msg.type === "WHISPER" ? (
-              <>
-                <Text color="gray">[{formatTimestamp(msg.timestamp)}] </Text>
-                <Text color="magenta" italic>
-                  {msg.sender === nickname
-                    ? `→ ${msg.recipient}에게 귓속말`
-                    : `← ${msg.sender}로부터 귓속말`}
-                </Text>
-                <Text italic>: {msg.content}</Text>
-              </>
-            ) : (
-              <>
-                <Text color="gray">[{formatTimestamp(msg.timestamp)}] </Text>
-                <Text bold color={getColorForNickname(msg.sender)}>
-                  {msg.sender}
-                </Text>
-                <Text>: {msg.content}</Text>
-              </>
-            )}
-          </Box>
-        ))}
+        {messages.map((msg, index) => {
+          // Find the previous non-system, non-whisper message to compare dates
+          let prevRealMsg = null;
+          for (let i = index - 1; i >= 0; i--) {
+            if (messages[i].type === "MESSAGE") {
+              prevRealMsg = messages[i];
+              break;
+            }
+          }
+
+          // Show date separator only for the first message of a new day
+          const isMessage = msg.type === "MESSAGE";
+          const showDateSeparator =
+            isMessage &&
+            (!prevRealMsg ||
+              new Date(msg.timestamp).toDateString() !==
+                new Date(prevRealMsg.timestamp).toDateString());
+
+          return (
+            <React.Fragment key={msg.id}>
+              {showDateSeparator && (
+                <Box key={`date-${msg.id}`}>
+                  <Text dimColor>--- {formatDate(msg.timestamp)} ---</Text>
+                </Box>
+              )}
+              <Box flexDirection="row">
+                {["SYSTEM", "JOIN", "LEAVE"].includes(msg.type) ? (
+                  <Text dimColor italic>
+                    {msg.content}
+                  </Text>
+                ) : msg.type === "WHISPER" ? (
+                  <>
+                    <Text color="gray">
+                      [{formatTimestamp(msg.timestamp)}]{" "}
+                    </Text>
+                    <Text color="magenta" italic>
+                      {msg.sender === nickname
+                        ? `→ ${msg.recipient}에게 귓속말`
+                        : `← ${msg.sender}로부터 귓속말`}
+                    </Text>
+                    <Text italic>: {msg.content}</Text>
+                  </>
+                ) : (
+                  <>
+                    <Text color="gray">
+                      [{formatTimestamp(msg.timestamp)}]{" "}
+                    </Text>
+                    <Text bold color={getColorForNickname(msg.sender)}>
+                      {msg.sender}
+                    </Text>
+                    <Text>: {msg.content}</Text>
+                  </>
+                )}
+              </Box>
+            </React.Fragment>
+          );
+        })}
       </Box>
 
       {/* 메시지 입력 영역 */}
