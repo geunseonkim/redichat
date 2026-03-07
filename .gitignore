@@ -4,4 +4,5 @@ node_modules/
 # Environment variables
 .env
 
-error.md
+# Documentation for personal use
+docs/
