@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Text, Box, Newline, useApp } from "ink";
+import { Text, Box, Newline, useApp, useInput } from "ink";
 import TextInput from "ink-text-input";
 import Redis from "ioredis";
 import { v4 as uuidv4 } from "uuid";
@@ -56,6 +56,7 @@ const App = () => {
   const [roomName, setRoomName] = useState("");
   const [roomPassword, setRoomPassword] = useState("");
   const [error, setError] = useState("");
+  const [isExiting, setIsExiting] = useState(false);
 
   const [messages, setMessages] = useState([]); // 채팅 메시지 목록
   const [currentMessage, setCurrentMessage] = useState(""); // 현재 입력 중인 메시지
@@ -64,6 +65,46 @@ const App = () => {
   // Dynamic Redis keys based on user input
   const [channel, setChannel] = useState("");
   const [usersSetKey, setUsersSetKey] = useState("");
+
+  // Graceful exit handler using Ink's `useInput`
+  useInput((input, key) => {
+    // Don't handle input if we are already exiting
+    if (isExiting) {
+      return;
+    }
+
+    if (key.ctrl && input.toLowerCase() === "c") {
+      setIsExiting(true);
+    }
+  });
+
+  // Effect to handle the actual exit process
+  useEffect(() => {
+    if (!isExiting) {
+      return;
+    }
+
+    const cleanupAndExit = async () => {
+      if (channel) {
+        await publisher.srem(usersSetKey, nickname);
+        const leaveMessage = {
+          id: uuidv4(),
+          type: "LEAVE",
+          nickname,
+          content: `${nickname}님이 채팅방을 나갔습니다.`,
+          timestamp: new Date().toISOString(),
+        };
+        // Await the publish to ensure the message is sent before disconnecting
+        await publisher.publish(channel, JSON.stringify(leaveMessage));
+        await publisher.quit();
+        await subscriber.quit();
+      }
+      // Now, exit the app
+      exit();
+    };
+
+    cleanupAndExit();
+  }, [isExiting, channel, usersSetKey, nickname, exit]);
 
   // Redis 메시지 수신 및 앱 종료 처리
   useEffect(() => {
@@ -92,35 +133,12 @@ const App = () => {
 
     subscriber.on("message", messageHandler);
 
-    const handleGracefulExit = () => {
-      const cleanupAndExit = async () => {
-        await publisher.srem(usersSetKey, nickname);
-        const leaveMessage = {
-          id: uuidv4(),
-          type: "LEAVE",
-          nickname,
-          content: `${nickname}님이 채팅방을 나갔습니다.`,
-          timestamp: new Date().toISOString(),
-        };
-        await publisher.publish(channel, JSON.stringify(leaveMessage));
-
-        // 연결을 바로 끊고 앱을 종료합니다.
-        publisher.disconnect();
-        subscriber.disconnect();
-        exit();
-      };
-      cleanupAndExit();
-    };
-
-    process.on("SIGINT", handleGracefulExit);
-
     return () => {
-      process.removeListener("SIGINT", handleGracefulExit);
       // 방을 이동하거나 앱이 종료될 때, 이전 채널의 구독을 확실히 해제합니다.
       subscriber.unsubscribe(channel);
       subscriber.off("message", messageHandler);
     };
-  }, [step, channel, usersSetKey, nickname, exit]);
+  }, [step, channel, nickname]);
 
   const startChattingSession = async (targetRoomName, targetNickname) => {
     const finalChannel = `chat:room:${targetRoomName}`;
