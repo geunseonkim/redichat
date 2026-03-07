@@ -4,6 +4,7 @@ import TextInput from "ink-text-input";
 import Redis from "ioredis";
 import { v4 as uuidv4 } from "uuid";
 import crypto from "crypto";
+import { render } from "ink";
 
 // Redis 연결 설정. 환경 변수에서 값을 읽어오고, 없으면 기본값을 사용합니다.
 const redisOptions = {
@@ -689,4 +690,4 @@ const App = () => {
   );
 };
 
-export default App;
+render(<App />);

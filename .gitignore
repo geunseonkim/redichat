@@ -6,3 +6,6 @@ node_modules/
 
 # Documentation for personal use
 docs/
+
+# Build output
+dist/

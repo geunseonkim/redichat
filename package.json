@@ -1,6 +1,7 @@
 {
     "name": "redichat",
     "version": "1.0.0",
+    "type": "module",
     "description": "A simple, real-time, multi-room terminal chat application using Node.js and Redis.",
     "main": "dist/ui.js",
     "bin": {
@@ -8,7 +9,7 @@
     },
     "scripts": {
         "start": "node bin/redichat.js",
-        "build": "esbuild src/ui.jsx --bundle --outfile=dist/ui.js --format=cjs --platform=node --external:react --external:ink --external:ink-text-input --external:ioredis --external:uuid",
+        "build": "esbuild src/ui.jsx --bundle --outfile=dist/ui.js --format=esm --platform=node --external:react --external:ink --external:ink-text-input --external:ioredis --external:uuid",
         "lint": "xo",
         "prepublishOnly": "npm run build"
     },
