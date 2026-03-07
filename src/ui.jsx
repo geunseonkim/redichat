@@ -90,6 +90,7 @@ const App = () => {
   const [roomName, setRoomName] = useState("");
   const [roomPassword, setRoomPassword] = useState("");
   const [error, setError] = useState("");
+  const [passwordAttempts, setPasswordAttempts] = useState(0);
   const [isExiting, setIsExiting] = useState(false);
 
   const [messages, setMessages] = useState([]); // 채팅 메시지 목록
@@ -249,6 +250,7 @@ const App = () => {
         }
 
         setError(""); // Clear previous errors
+        setPasswordAttempts(0); // Reset password attempts for the new room
         setRoomName(trimmedValue);
         setStep("ROOM_PASSWORD");
       }
@@ -256,6 +258,16 @@ const App = () => {
   };
 
   const handleRoomPasswordSubmit = async (value) => {
+    // Handle "go back" command
+    if (value.trim().toLowerCase() === "/back") {
+      setRoomName("");
+      setRoomPassword("");
+      setError("");
+      setPasswordAttempts(0);
+      setStep("ROOM_NAME");
+      return;
+    }
+
     const enteredPassword = value.trim();
     setError(""); // 이전 에러 메시지 초기화
 
@@ -265,7 +277,24 @@ const App = () => {
       // 기존 방: 비밀번호 검증
       const enteredHashedPassword = hashPassword(enteredPassword);
       if (storedHashedPassword !== enteredHashedPassword) {
-        setError("비밀번호가 일치하지 않습니다. 다시 시도해주세요.");
+        const newAttempts = passwordAttempts + 1;
+        setPasswordAttempts(newAttempts);
+
+        if (newAttempts >= 3) {
+          setError(
+            "비밀번호를 3회 이상 틀렸습니다. 채팅방 선택 화면으로 돌아갑니다.",
+          );
+          // Use a timeout to let the user see the message before redirecting
+          setTimeout(() => {
+            setRoomName("");
+            setRoomPassword("");
+            setError("");
+            setPasswordAttempts(0);
+            setStep("ROOM_NAME");
+          }, 1500);
+        } else {
+          setError(`비밀번호가 일치하지 않습니다. (${newAttempts}/3)`);
+        }
         return;
       }
     } else {
@@ -274,6 +303,8 @@ const App = () => {
       await publisher.hset("chat:rooms", roomName, newHashedPassword);
     }
 
+    // On success, reset attempts and start session
+    setPasswordAttempts(0);
     await startChattingSession(roomName, nickname);
   };
 
@@ -391,6 +422,60 @@ const App = () => {
       return;
     }
 
+    // 명령어 처리: /rooms
+    if (trimmedValue === "/rooms") {
+      // 1. Get private rooms
+      const privateRooms = await publisher.hkeys("chat:rooms");
+
+      // 2. Get public rooms by scanning keys
+      const publicRoomKeys = [];
+      const stream = publisher.scanStream({
+        match: "chat:room:random*:users",
+        count: 100,
+      });
+      for await (const keys of stream) {
+        publicRoomKeys.push(...keys);
+      }
+      const publicRooms = publicRoomKeys.map((key) => key.split(":")[2]);
+
+      // 3. Combine and get unique room names
+      const allRooms = [...new Set([...privateRooms, ...publicRooms])].sort();
+
+      if (allRooms.length === 0) {
+        const noRoomsMessage = {
+          id: uuidv4(),
+          type: "SYSTEM",
+          content: "현재 활성화된 채팅방이 없습니다.",
+          timestamp: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev.slice(-100), noRoomsMessage]);
+        setCurrentMessage("");
+        return;
+      }
+
+      // 4. Get user count for each room
+      const multi = publisher.multi();
+      for (const room of allRooms) {
+        multi.scard(`chat:room:${room}:users`);
+      }
+      const counts = await multi.exec();
+
+      // 5. Format the output
+      const roomList = allRooms
+        .map((room, index) => `  - ${room} (${counts[index][1]}/100)`)
+        .join("\n");
+
+      const roomsMessage = {
+        id: uuidv4(),
+        type: "SYSTEM",
+        content: `활성화된 채팅방 목록:\n${roomList}`,
+        timestamp: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev.slice(-100), roomsMessage]);
+      setCurrentMessage("");
+      return;
+    }
+
     // 일반 메시지 처리
     if (trimmedValue && nickname) {
       // 메시지 발행
@@ -488,7 +573,7 @@ const App = () => {
           채팅방 '<Text color="cyan">{roomName}</Text>'의 비밀번호를
           입력해주세요.
         </Text>
-        <Text color="gray">(비밀번호가 없으면 그냥 Enter를 누르세요)</Text>
+        <Text color="gray">(비밀번호가 없으면 Enter, 돌아가려면 /back)</Text>
         {error && <Text color="red">{error}</Text>}
         <TextInput
           value={roomPassword}
@@ -592,7 +677,7 @@ const App = () => {
           value={currentMessage}
           onChange={setCurrentMessage}
           onSubmit={handleMessageSubmit}
-          placeholder="메시지를 입력하세요... (/users, /whisper, /join)"
+          placeholder="메시지를 입력하세요... (/users, /whisper, /join, /rooms)"
         />
       </Box>
     </Box>
