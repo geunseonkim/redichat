@@ -1,69 +1,158 @@
-# Redis Terminal Chat
+# redichat
 
-> A simple, real-time, multi-room terminal chat application using Node.js and Redis.
+Real-time Redis terminal chat.
+
+```bash
+npm install -g redichat
+```
+
+> A simple, real-time multi-room terminal chat powered by Redis Pub/Sub.
+
+`redichat` is a CLI chat application built with Node.js, React (Ink), and Redis.  
+It allows multiple users to join chat rooms and communicate in real time directly from the terminal.
 
 ## ✨ Features
 
-- **Real-time Chat**: Blazing fast messaging powered by Redis Pub/Sub.
-- **Multi-language Support**: Supports both English and Korean.
-- **Private & Public Rooms**: Create password-protected private rooms or join public random rooms.
-- **Chat History**: Loads recent messages upon joining a room.
-- **Rich Commands**:
-  - `/users`: View participants in the current room.
-  - `/rooms`: View all active rooms and their member counts.
-  - `/join <room>`: Switch to another room without restarting.
-  - `/whisper <nick> <msg>`: Send a private message.
-  - `/back`: Go back from the password screen.
-- **Dynamic Nickname Colors**: Unique colors assigned to each user for better readability.
+- **Real-time messaging** powered by Redis Pub/Sub
+- **Multi-room chat** (create or join rooms instantly)
+- **Private rooms** with password protection
+- **Chat history** loaded when entering a room
+- **Private messaging** between users
+- **Multi-language support** (English / Korean)
+- **Dynamic nickname colors** for readability
+- Built with **React for the terminal** using Ink
 
-## Prerequisites
+---
 
-- Node.js (v18 or higher recommended)
-- A running Redis instance (local or remote)
+# 📦 Installation
 
-## 🚀 Installation
+Install globally:
 
-1.  **Clone the repository:**
+```bash
+npm install -g redichat
+```
 
-    ```bash
-    git clone https://github.com/your-username/redis-chat.git
-    cd redis-chat
-    ```
+or run instantly with:
 
-2.  **Install dependencies:**
-    ```bash
-    npm install
-    ```
+```bash
+npx redichat
+```
 
-## ⚙️ Configuration
+---
 
-1.  Copy the example environment file:
+# ⚙️ Configuration
 
-    ```bash
-    cp .env.example .env
-    ```
+`redichat` requires a running Redis instance.
 
-2.  Edit the `.env` file with your Redis server details:
-    ```dotenv
-    REDIS_HOST=127.0.0.1
-    REDIS_PORT=6379
-    REDIS_PASSWORD=your_redis_password
-    ```
+Create a `.env` file:
 
-## 🏃‍♂️ How to Run
+```bash
+cp .env.example .env
+```
 
-Simply run the start command in your terminal:
+Example configuration:
+
+```env
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_PASSWORD=your_redis_password
+```
+
+---
+
+# 🚀 Usage
+
+Start the chat client:
+
+```bash
+redichat
+```
+
+You will be prompted to:
+
+1. Select a language
+2. Enter your nickname
+3. Join or create a chat room
+
+---
+
+# 💬 Commands
+
+Inside a chat room you can use:
+
+```
+/users
+```
+
+View users in the current room.
+
+```
+/rooms
+```
+
+View all active rooms and their member counts.
+
+```
+/join <room>
+```
+
+Switch to another room.
+
+```
+/whisper <nick> <message>
+```
+
+Send a private message.
+
+```
+/back
+```
+
+Return from the password input screen.
+
+---
+
+# 🧰 Development
+
+Clone the repository:
+
+```bash
+git clone https://github.com/geunseonkim/redichat.git
+cd redichat
+```
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Build the project:
+
+```bash
+npm run build
+```
+
+Run locally:
 
 ```bash
 npm start
 ```
 
-Follow the on-screen instructions to select a language, set your nickname, and join or create a room.
+---
 
-## 🤝 Contributing
+# 🤝 Contributing
 
-Contributions are welcome! Please read the CONTRIBUTING.md for details on our code of conduct and the process for submitting pull requests.
+Contributions are welcome!
 
-## 📜 License
+If you'd like to improve the project:
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+1. Fork the repository
+2. Create a feature branch
+3. Submit a pull request
+
+---
+
+# 📜 License
+
+MIT License © 2026 Geunseon Kim

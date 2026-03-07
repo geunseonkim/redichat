@@ -1,36 +1,64 @@
 {
-    "name": "redis-term-chat",
+    "name": "redichat",
     "version": "1.0.0",
-    "description": "A simple, real-time terminal chat application using Node.js and Redis.",
+    "description": "A simple, real-time, multi-room terminal chat application using Node.js and Redis.",
+    "main": "dist/ui.js",
+    "bin": {
+        "redichat": "bin/redichat.js"
+    },
+    "scripts": {
+        "start": "node bin/redichat.js",
+        "build": "esbuild src/ui.jsx --bundle --outfile=dist/ui.js --format=cjs --platform=node --external:react --external:ink --external:ink-text-input --external:ioredis --external:uuid",
+        "lint": "xo",
+        "prepublishOnly": "npm run build"
+    },
+    "files": [
+        "bin",
+        "dist",
+        "LICENSE",
+        "README.md"
+    ],
+    "keywords": [
+        "redis",
+        "chat",
+        "terminal",
+        "cli",
+        "ink",
+        "react",
+        "nodejs",
+        "pubsub"
+    ],
+    "author": "Geunseon Kim",
     "license": "MIT",
-    "author": "Your Name <your.email@example.com>",
-    "type": "module",
     "repository": {
         "type": "git",
-        "url": "https://github.com/your-username/redis-chat.git"
+        "url": "https://github.com/geunseonkim/redichat.git"
     },
-    "bugs": {
-        "url": "https://github.com/your-username/redis-chat/issues"
-    },
-    "homepage": "https://github.com/your-username/redis-chat#readme",
-    "bin": "src/cli.jsx",
-    "scripts": {
-        "start": "tsx src/cli.jsx",
-        "dev": "tsx src/cli.jsx"
+    "engines": {
+        "node": ">=18"
     },
     "dependencies": {
         "ink": "^4.4.1",
-        "ink-text-input": "^5.0.1",
+        "ink-text-input": "^4.0.1",
         "ioredis": "^5.3.2",
         "react": "^18.2.0",
         "uuid": "^9.0.1"
     },
     "devDependencies": {
-        "tsx": "^4.7.0",
+        "esbuild": "^0.19.8",
         "xo": "^0.56.0"
     },
     "xo": {
-        "extends": "xo-react",
-        "prettier": true
+        "envs": [
+            "node",
+            "browser"
+        ],
+        "prettier": true,
+        "space": true,
+        "rules": {
+            "react/react-in-jsx-scope": "off",
+            "unicorn/filename-case": "off",
+            "import/no-unassigned-import": "off"
+        }
     }
 }
