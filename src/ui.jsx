@@ -116,9 +116,11 @@ const App = () => {
 
     return () => {
       process.removeListener("SIGINT", handleGracefulExit);
+      // 방을 이동하거나 앱이 종료될 때, 이전 채널의 구독을 확실히 해제합니다.
+      subscriber.unsubscribe(channel);
       subscriber.off("message", messageHandler);
     };
-  }, [step, channel, usersSetKey, nickname]);
+  }, [step, channel, usersSetKey, nickname, exit]);
 
   const startChattingSession = async (targetRoomName, targetNickname) => {
     const finalChannel = `chat:room:${targetRoomName}`;
@@ -217,6 +219,40 @@ const App = () => {
   const handleMessageSubmit = async (value) => {
     const trimmedValue = value.trim();
     if (!trimmedValue || !nickname) {
+      return;
+    }
+
+    // 명령어 처리: /join
+    if (trimmedValue.startsWith("/join")) {
+      const parts = trimmedValue.split(" ");
+      const newRoomName = parts[1]; // e.g., /join general
+
+      // 1. 현재 방에서 나갑니다.
+      if (channel) {
+        const leaveMessage = {
+          id: uuidv4(),
+          type: "LEAVE",
+          nickname,
+          content: `${nickname}님이 채팅방을 나갔습니다.`,
+          timestamp: new Date().toISOString(),
+        };
+        await publisher.srem(usersSetKey, nickname);
+        await publisher.publish(channel, JSON.stringify(leaveMessage));
+      }
+
+      // 2. 상태를 초기화하고 다음 단계로 이동합니다.
+      setMessages([]);
+      setRoomPassword("");
+      setCurrentMessage("");
+
+      if (newRoomName) {
+        // `/join <방이름>`: 바로 해당 방 입장 절차 시작
+        await handleRoomNameSubmit(newRoomName);
+      } else {
+        // `/join`: 방 선택 단계로 돌아감
+        setRoomName("");
+        setStep("ROOM_NAME");
+      }
       return;
     }
 
@@ -491,7 +527,7 @@ const App = () => {
           value={currentMessage}
           onChange={setCurrentMessage}
           onSubmit={handleMessageSubmit}
-          placeholder="메시지를 입력하세요... (/users, /whisper)"
+          placeholder="메시지를 입력하세요... (/users, /whisper, /join)"
         />
       </Box>
     </Box>
