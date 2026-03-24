@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import "dotenv/config";
+
 try {
   await import("../dist/ui.js");
 } catch (error) {
