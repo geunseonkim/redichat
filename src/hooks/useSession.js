@@ -1,17 +1,39 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import * as redisService from "../services/redisService.js";
 
+const SESSION_STEPS = {
+  NICKNAME: "NICKNAME",
+  ROOM_NAME: "ROOM_NAME",
+  ROOM_PASSWORD: "ROOM_PASSWORD",
+  CHATTING: "CHATTING",
+};
+
 export const useSession = ({ onSessionEstablished }) => {
-  const [step, setStep] = useState("NICKNAME");
+  const [step, setStep] = useState(SESSION_STEPS.NICKNAME);
   const [nickname, setNickname] = useState("");
   const [roomName, setRoomName] = useState("");
   const [error, setError] = useState("");
   const [passwordAttempts, setPasswordAttempts] = useState(0);
+  const [isLockedOut, setIsLockedOut] = useState(false);
+
+  // isLockedOut 상태가 true가 되면 타이머를 시작합니다.
+  useEffect(() => {
+    if (isLockedOut) {
+      const timer = setTimeout(() => {
+        setRoomName("");
+        setError("");
+        setPasswordAttempts(0);
+        setStep(SESSION_STEPS.ROOM_NAME);
+        setIsLockedOut(false); // 잠금 상태 초기화
+      }, 1500);
+      return () => clearTimeout(timer); // 컴포넌트가 사라지면 타이머도 정리
+    }
+  }, [isLockedOut]);
 
   const handleNicknameSubmit = useCallback((value) => {
     if (value.trim()) {
       setNickname(value.trim());
-      setStep("ROOM_NAME");
+      setStep(SESSION_STEPS.ROOM_NAME);
     }
   }, []);
 
@@ -23,7 +45,7 @@ export const useSession = ({ onSessionEstablished }) => {
           const randomRoomName = await redisService.findAvailableRandomRoom();
           setRoomName(randomRoomName);
           onSessionEstablished(randomRoomName, nickname);
-          setStep("CHATTING");
+          setStep(SESSION_STEPS.CHATTING);
         } else {
           const userCount = await redisService.getRoomCapacity(trimmedValue);
           if (userCount >= 100) {
@@ -33,7 +55,7 @@ export const useSession = ({ onSessionEstablished }) => {
           setError("");
           setPasswordAttempts(0);
           setRoomName(trimmedValue);
-          setStep("ROOM_PASSWORD");
+          setStep(SESSION_STEPS.ROOM_PASSWORD);
         }
       }
     },
@@ -46,7 +68,7 @@ export const useSession = ({ onSessionEstablished }) => {
         setRoomName("");
         setError("");
         setPasswordAttempts(0);
-        setStep("ROOM_NAME");
+        setStep(SESSION_STEPS.ROOM_NAME);
         return;
       }
 
@@ -67,12 +89,7 @@ export const useSession = ({ onSessionEstablished }) => {
             setError(
               "비밀번호를 3회 이상 틀렸습니다. 채팅방 선택 화면으로 돌아갑니다.",
             );
-            setTimeout(() => {
-              setRoomName("");
-              setError("");
-              setPasswordAttempts(0);
-              setStep("ROOM_NAME");
-            }, 1500);
+            setIsLockedOut(true); // 상태를 변경하여 useEffect 트리거
           } else {
             setError(`비밀번호가 일치하지 않습니다. (${newAttempts}/3)`);
           }
@@ -84,7 +101,7 @@ export const useSession = ({ onSessionEstablished }) => {
 
       setPasswordAttempts(0);
       onSessionEstablished(roomName, nickname);
-      setStep("CHATTING");
+      setStep(SESSION_STEPS.CHATTING);
     },
     [roomName, nickname, passwordAttempts, onSessionEstablished],
   );
@@ -93,7 +110,7 @@ export const useSession = ({ onSessionEstablished }) => {
     setRoomName("");
     setError("");
     setPasswordAttempts(0);
-    setStep("ROOM_NAME");
+    setStep(SESSION_STEPS.ROOM_NAME);
   }, []);
 
   return {
