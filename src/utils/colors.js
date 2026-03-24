@@ -34,7 +34,7 @@ export const getColorForNickname = (nickname) => {
   let hash = 0;
   for (let i = 0; i < nickname.length; i++) {
     hash = nickname.charCodeAt(i) + ((hash << 5) - hash);
-    hash &= hash; // 32비트 정수로 변환
+    hash |= 0; // 32비트 정수로 변환
   }
   const hue = Math.abs(hash % 360) / 360; // 0-1 사이의 값
   const saturation = 0.6; // 채도 (조금 낮춰서 덜 밝게)
