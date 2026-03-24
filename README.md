@@ -18,7 +18,6 @@ It allows multiple users to join chat rooms and communicate in real time directl
 - **Private rooms** with password protection
 - **Chat history** loaded when entering a room
 - **Private messaging** between users
-- **Multi-language support** (English / Korean) (is comming)
 - **Multi-language support** (English / Korean) (coming soon)
 - **Dynamic nickname colors** for readability
 - Built with **React for the terminal** using Ink
