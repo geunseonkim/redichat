@@ -1,5 +1,5 @@
 import Redis from "ioredis";
-import { hashPassword } from "./utils/crypto.js";
+import { hashPassword } from "../utils/crypto.js";
 
 // Redis 연결 설정. 환경 변수에서 값을 읽어오고, 없으면 기본값을 사용합니다.
 const redisOptions = {

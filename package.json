@@ -33,7 +33,7 @@
     "license": "MIT",
     "repository": {
         "type": "git",
-        "url": "https://github.com/geunseonkim/redichat.git"
+        "url": "git+https://github.com/geunseonkim/redichat.git"
     },
     "engines": {
         "node": ">=18"
