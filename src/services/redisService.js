@@ -12,6 +12,8 @@ const redisOptions = {
 export const publisher = new Redis(redisOptions);
 export const subscriber = new Redis(redisOptions);
 
+let isDisconnecting = false;
+
 // --- 키 생성 헬퍼 ---
 const getRoomChannel = (roomName) => `chat:room:${roomName}`;
 const getUsersSetKey = (roomName) => `chat:room:${roomName}:users`;
@@ -39,6 +41,7 @@ export const subscribeToChannel = (roomName, handler) => {
 
   // 구독 해제 함수 반환
   return () => {
+    if (isDisconnecting) return;
     subscriber.unsubscribe(channel);
     subscriber.off("message", messageHandler);
   };
@@ -191,6 +194,8 @@ export const getRoomList = async () => {
  * Redis 클라이언트 연결을 종료합니다.
  */
 export const disconnect = async () => {
+  if (isDisconnecting) return;
+  isDisconnecting = true;
   await publisher.quit();
   await subscriber.quit();
 };

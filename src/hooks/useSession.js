@@ -8,7 +8,7 @@ const SESSION_STEPS = {
   CHATTING: "CHATTING",
 };
 
-export const useSession = ({ onSessionEstablished }) => {
+export const useSession = () => {
   const [step, setStep] = useState(SESSION_STEPS.NICKNAME);
   const [nickname, setNickname] = useState("");
   const [roomName, setRoomName] = useState("");
@@ -44,7 +44,6 @@ export const useSession = ({ onSessionEstablished }) => {
         if (trimmedValue.toLowerCase() === "random") {
           const randomRoomName = await redisService.findAvailableRandomRoom();
           setRoomName(randomRoomName);
-          onSessionEstablished(randomRoomName, nickname);
           setStep(SESSION_STEPS.CHATTING);
         } else {
           const userCount = await redisService.getRoomCapacity(trimmedValue);
@@ -59,16 +58,20 @@ export const useSession = ({ onSessionEstablished }) => {
         }
       }
     },
-    [nickname, onSessionEstablished],
+    [nickname],
   );
+
+  const resetToRoomSelection = useCallback(() => {
+    setRoomName("");
+    setError("");
+    setPasswordAttempts(0);
+    setStep(SESSION_STEPS.ROOM_NAME);
+  }, []);
 
   const handleRoomPasswordSubmit = useCallback(
     async (value) => {
       if (value.trim().toLowerCase() === "/back") {
-        setRoomName("");
-        setError("");
-        setPasswordAttempts(0);
-        setStep(SESSION_STEPS.ROOM_NAME);
+        resetToRoomSelection();
         return;
       }
 
@@ -80,38 +83,33 @@ export const useSession = ({ onSessionEstablished }) => {
         enteredPassword,
       );
 
-      if (exists) {
-        if (!correct) {
-          const newAttempts = passwordAttempts + 1;
-          setPasswordAttempts(newAttempts);
+      // Case 1: Room exists, but password is wrong
+      if (exists && !correct) {
+        const newAttempts = passwordAttempts + 1;
+        setPasswordAttempts(newAttempts);
 
-          if (newAttempts >= 3) {
-            setError(
-              "비밀번호를 3회 이상 틀렸습니다. 채팅방 선택 화면으로 돌아갑니다.",
-            );
-            setIsLockedOut(true); // 상태를 변경하여 useEffect 트리거
-          } else {
-            setError(`비밀번호가 일치하지 않습니다. (${newAttempts}/3)`);
-          }
-          return;
+        if (newAttempts >= 3) {
+          setError(
+            "비밀번호를 3회 이상 틀렸습니다. 채팅방 선택 화면으로 돌아갑니다.",
+          );
+          setIsLockedOut(true);
+        } else {
+          setError(`비밀번호가 일치하지 않습니다. (${newAttempts}/3)`);
         }
-      } else {
+        return;
+      }
+
+      // Case 2: Room does not exist, so create it with the password
+      if (!exists) {
         await redisService.setRoomPassword(roomName, enteredPassword);
       }
 
+      // Proceed to chat if password was correct or if it was a new room
       setPasswordAttempts(0);
-      onSessionEstablished(roomName, nickname);
       setStep(SESSION_STEPS.CHATTING);
     },
-    [roomName, nickname, passwordAttempts, onSessionEstablished],
+    [roomName, nickname, passwordAttempts, resetToRoomSelection],
   );
-
-  const resetToRoomSelection = useCallback(() => {
-    setRoomName("");
-    setError("");
-    setPasswordAttempts(0);
-    setStep(SESSION_STEPS.ROOM_NAME);
-  }, []);
 
   return {
     step,

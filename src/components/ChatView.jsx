@@ -75,7 +75,7 @@ const ChatView = ({
           value={currentMessage}
           onChange={setCurrentMessage}
           onSubmit={onSubmit}
-          placeholder="메시지를 입력하세요... (/users, /whisper, /join, /rooms)"
+          placeholder="메시지를 입력하세요... (/users, /whisper, /join, /rooms, /exit, /help)"
         />
       </Box>
     </Box>

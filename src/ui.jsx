@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { render, useApp, useInput } from "ink";
+import { v4 as uuidv4 } from "uuid";
 
 import { useSession } from "./hooks/useSession.js";
 import { useChat } from "./hooks/useChat.js";
@@ -15,18 +16,6 @@ const App = () => {
   const [roomPassword, setRoomPassword] = useState("");
   const { exit } = useApp();
 
-  // This callback is passed to useSession. It's called right before the step is set to 'CHATTING'.
-  // It uses `loadInitialChat` from the `useChat` hook, which is defined below.
-  // This is a safe pattern in React as the function is only invoked after all hooks have been initialized.
-  const onSessionEstablished = useCallback(
-    async (targetRoomName, targetNickname) => {
-      // eslint-disable-next-line no-use-before-define
-      await loadInitialChat(targetRoomName, targetNickname);
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  );
-
   const {
     step,
     nickname,
@@ -39,7 +28,7 @@ const App = () => {
     handleRoomNameSubmit,
     handleRoomPasswordSubmit,
     resetToRoomSelection,
-  } = useSession({ onSessionEstablished });
+  } = useSession();
 
   const handleRoomChange = useCallback(
     (newRoomName) => {
@@ -52,13 +41,29 @@ const App = () => {
     [handleRoomNameSubmit, resetToRoomSelection],
   );
 
+  const handleExitRequest = useCallback(() => {
+    setIsExiting(true);
+  }, []);
+
   const {
     messages,
     currentMessage,
     setCurrentMessage,
     handleMessageSubmit,
     loadInitialChat,
-  } = useChat({ nickname, roomName, onRoomChange: handleRoomChange });
+  } = useChat({
+    nickname,
+    roomName,
+    onRoomChange: handleRoomChange,
+    onExitRequest: handleExitRequest,
+  });
+
+  // Effect to load chat when session is established
+  useEffect(() => {
+    if (step === "CHATTING" && roomName && nickname) {
+      loadInitialChat(roomName, nickname);
+    }
+  }, [step, roomName, nickname, loadInitialChat]);
 
   // Graceful exit handler using Ink's `useInput`
   useInput((input, key) => {
@@ -81,6 +86,7 @@ const App = () => {
     const cleanupAndExit = async () => {
       if (roomName && nickname) {
         const leaveMessage = {
+          id: uuidv4(),
           type: "LEAVE",
           nickname,
           content: `${nickname}님이 채팅방을 나갔습니다.`,
