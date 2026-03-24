@@ -14,14 +14,21 @@ export const useChat = ({ nickname, roomName, onRoomChange }) => {
     }
 
     const messageHandler = (parsedMessage) => {
-      if (parsedMessage.type === "WHISPER") {
-        if (
-          parsedMessage.sender === nickname ||
-          parsedMessage.recipient === nickname
-        ) {
-          setMessages((prev) => [...prev.slice(-100), parsedMessage]);
-        }
-      } else {
+      // Optimistic UI: Ignore our own JOIN message because we add it instantly.
+      if (
+        parsedMessage.type === "JOIN" &&
+        parsedMessage.nickname === nickname
+      ) {
+        return;
+      }
+
+      const isPublicMessage = parsedMessage.type !== "WHISPER";
+      const isMyWhisper =
+        parsedMessage.type === "WHISPER" &&
+        (parsedMessage.sender === nickname ||
+          parsedMessage.recipient === nickname);
+
+      if (isPublicMessage || isMyWhisper) {
         setMessages((prev) => [...prev.slice(-100), parsedMessage]);
       }
     };
@@ -40,7 +47,7 @@ export const useChat = ({ nickname, roomName, onRoomChange }) => {
     async (targetRoomName, targetNickname) => {
       const chatHistory = await redisService.getChatHistory(targetRoomName);
 
-      let initialMessages = [];
+      const initialMessages = [];
       if (chatHistory.length > 0) {
         const historyLoadedMessage = {
           id: uuidv4(),
@@ -48,12 +55,8 @@ export const useChat = ({ nickname, roomName, onRoomChange }) => {
           content: `--- 이전 대화 ${chatHistory.length}개를 불러왔습니다. ---`,
           timestamp: new Date().toISOString(),
         };
-        initialMessages = [...chatHistory, historyLoadedMessage];
-      } else {
-        initialMessages = [];
+        initialMessages.push(...chatHistory, historyLoadedMessage);
       }
-
-      await redisService.addUserToRoom(targetRoomName, targetNickname);
 
       const joinMessage = {
         id: uuidv4(),
@@ -62,10 +65,12 @@ export const useChat = ({ nickname, roomName, onRoomChange }) => {
         content: `${targetNickname}님이 채팅방에 입장했습니다.`,
         timestamp: new Date().toISOString(),
       };
-      await redisService.publishMessage(targetRoomName, joinMessage);
 
-      // Set messages state after all async operations
-      setMessages(initialMessages);
+      // Set messages state after all async operations, including the optimistic join message
+      setMessages([...initialMessages, joinMessage]);
+
+      await redisService.addUserToRoom(targetRoomName, targetNickname);
+      await redisService.publishMessage(targetRoomName, joinMessage);
     },
     [],
   );
