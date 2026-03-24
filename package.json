@@ -39,8 +39,9 @@
         "node": ">=18"
     },
     "dependencies": {
+        "dotenv": "^17.3.1",
         "ink": "^4.4.1",
-        "ink-text-input": "^4.0.1",
+        "ink-text-input": "^5.0.1",
         "ioredis": "^5.3.2",
         "react": "^18.2.0",
         "uuid": "^9.0.1"
