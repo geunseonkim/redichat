@@ -19,6 +19,7 @@ It allows multiple users to join chat rooms and communicate in real time directl
 - **Chat history** loaded when entering a room
 - **Private messaging** between users
 - **Multi-language support** (English / Korean) (is comming)
+- **Multi-language support** (English / Korean) (coming soon)
 - **Dynamic nickname colors** for readability
 - Built with **React for the terminal** using Ink
 
@@ -137,6 +138,12 @@ Send a private message.
 ```
 
 Return from the password input screen.
+
+```
+/exit
+```
+
+Exit the chat application.
 
 ---
 
