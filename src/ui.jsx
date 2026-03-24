@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { useApp, useInput } from "ink";
+import { render, useApp, useInput } from "ink";
 
 import { useSession } from "./hooks/useSession.js";
 import { useChat } from "./hooks/useChat.js";
@@ -144,4 +144,4 @@ const App = () => {
   }
 };
 
-export default App;
+render(<App />);
