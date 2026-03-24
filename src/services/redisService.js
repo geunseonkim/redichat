@@ -5,7 +5,7 @@ import { hashPassword } from "../utils/crypto.js";
 const redisOptions = {
   host: process.env.REDIS_HOST || "127.0.0.1",
   port: process.env.REDIS_PORT || 6379,
-  password: process.env.REDIS_PASSWORD, // password가 없으면 undefined가 되어야 함
+  password: process.env.REDIS_PASSWORD || null, // password가 없으면 null을 사용
 };
 
 // Redis 클라이언트 생성. Pub/Sub을 위해서는 Publisher와 Subscriber를 분리하는 것이 좋습니다.
@@ -128,15 +128,28 @@ export const getRoomCapacity = (roomName) => {
  * @returns {Promise<string>} 참여 가능한 랜덤 방 이름
  */
 export const findAvailableRandomRoom = async () => {
-  let roomIndex = 1;
+  let batchStart = 1;
+  const batchSize = 10; // 한 번에 10개의 방을 확인
   // eslint-disable-next-line no-constant-condition
   while (true) {
-    const randomRoomName = `random${roomIndex}`;
-    const userCount = await getRoomCapacity(randomRoomName);
-    if (userCount < 100) {
-      return randomRoomName;
+    const multi = publisher.multi();
+    const roomNamesInBatch = [];
+
+    for (let i = 0; i < batchSize; i++) {
+      const roomName = `random${batchStart + i}`;
+      roomNamesInBatch.push(roomName);
+      multi.scard(getUsersSetKey(roomName));
     }
-    roomIndex++;
+
+    const counts = await multi.exec();
+
+    for (let i = 0; i < counts.length; i++) {
+      const userCount = counts[i][1]; // multi.exec 결과는 [[null, count]] 형태
+      if (userCount < 100) {
+        return roomNamesInBatch[i];
+      }
+    }
+    batchStart += batchSize;
   }
 };
 
